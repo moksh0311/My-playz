@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Musicly by Moksh</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#000000" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  html, body { margin: 0; background: #000000; overscroll-behavior: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="error-fallback" style="display:none;position:fixed;inset:0;background:#000000;color:#EFE9DE;padding:20px;font-family:monospace;font-size:13px;overflow:auto;z-index:9999;"></div>
+<script>
+  window.addEventListener('error', function (e) {
+    var el = document.getElementById('error-fallback');
+    if (el) {
+      el.style.display = 'block';
+      el.textContent = 'Something crashed while loading the app:\n\n' + (e.message || e) + '\n\n' + (e.filename ? (e.filename + ':' + e.lineno) : '');
+    }
+  });
+</script>
+<div id="yt-player" style="position:fixed;bottom:-1000px;width:1px;height:1px;overflow:hidden;"></div>
+<script>
+const { useState, useRef, useEffect, useCallback, useMemo } = React;
+const IconPlay = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("path", { d: "M6 4l14 8-14 8V4z" }));
+const IconPause = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("rect", { x: "5", y: "4", width: "5", height: "16" }), /* @__PURE__ */ React.createElement("rect", { x: "14", y: "4", width: "5", height: "16" }));
+const IconPrev = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("rect", { x: "4", y: "4", width: "2.5", height: "16" }), /* @__PURE__ */ React.createElement("path", { d: "M20 4L8 12l12 8V4z" }));
+const IconNext = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("rect", { x: "17.5", y: "4", width: "2.5", height: "16" }), /* @__PURE__ */ React.createElement("path", { d: "M4 4l12 8-12 8V4z" }));
+const IconVolume = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 16, height: p.size || 16, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("path", { d: "M4 9v6h4l5 5V4L8 9H4z" }), /* @__PURE__ */ React.createElement("path", { d: "M16 8a5 5 0 010 8", stroke: "currentColor", strokeWidth: "1.6", fill: "none" }));
+const IconMute = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 16, height: p.size || 16, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("path", { d: "M4 9v6h4l5 5V4L8 9H4z" }), /* @__PURE__ */ React.createElement("path", { d: "M16 9l5 6M21 9l-5 6", stroke: "currentColor", strokeWidth: "1.6" }));
+const IconDisc = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 18, height: p.size || 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.6" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "9" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "2.5", fill: "currentColor" }));
+const IconLink = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 14, height: p.size || 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8" }, /* @__PURE__ */ React.createElement("path", { d: "M9 15l6-6" }), /* @__PURE__ */ React.createElement("path", { d: "M8 17l-3 3a3.5 3.5 0 01-5-5l3-3" }), /* @__PURE__ */ React.createElement("path", { d: "M16 7l3-3a3.5 3.5 0 015 5l-3 3" }));
+const IconShuffle = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 18, height: p.size || 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8" }, /* @__PURE__ */ React.createElement("path", { d: "M3 6h3.5c2 0 3 1 4.5 3M3 18h3.5c2 0 3-1 4.5-3M17 6h4M17 18h4" }), /* @__PURE__ */ React.createElement("path", { d: "M17 3l4 3-4 3M17 15l4 3-4 3" }), /* @__PURE__ */ React.createElement("path", { d: "M14 6c1 1.5 2 3 2 3M14 18c1-1.5 2-3 2-3" }));
+const IconSearch = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 16, height: p.size || 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8" }, /* @__PURE__ */ React.createElement("circle", { cx: "11", cy: "11", r: "7" }), /* @__PURE__ */ React.createElement("path", { d: "M21 21l-4.3-4.3" }));
+const IconPlus = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 14, height: p.size || 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" }, /* @__PURE__ */ React.createElement("path", { d: "M12 5v14M5 12h14" }));
+const IconBack = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 22, height: p.size || 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" }, /* @__PURE__ */ React.createElement("path", { d: "M15 18l-6-6 6-6" }));
+const IconHome = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8" }, /* @__PURE__ */ React.createElement("path", { d: "M3 11l9-8 9 8" }), /* @__PURE__ */ React.createElement("path", { d: "M5 10v10h14V10" }));
+const IconLibrary = (p) => /* @__PURE__ */ React.createElement("svg", { color: p.color, width: p.size || 20, height: p.size || 20, viewBox: "0 0 24 24", fill: "currentColor" }, /* @__PURE__ */ React.createElement("rect", { x: "4", y: "5", width: "3", height: "14", rx: "1" }), /* @__PURE__ */ React.createElement("rect", { x: "10.5", y: "5", width: "3", height: "14", rx: "1" }), /* @__PURE__ */ React.createElement("rect", { x: "17", y: "5", width: "3", height: "14", rx: "1" }));
+const HOME_SESSIONS = [
+  { title: "Late Kitchen Light", artist: "Home Sessions", duration: 214 },
+  { title: "Slow Static", artist: "Home Sessions", duration: 187 },
+  { title: "Amber Hour", artist: "Home Sessions", duration: 241 },
+  { title: "Paper Moon Drift", artist: "Home Sessions", duration: 198 },
+  { title: "Quiet Static Bloom", artist: "Home Sessions", duration: 226 }
+];
+const MY_PLAYZ = [
+  { title: "9:45", artist: "Prabh Singh, Jay Trak, Rooh Sandhu", duration: 118 },
+  { title: "One Love", artist: "Shubh", duration: 159 },
+  { title: "Cheques", artist: "Shubh", duration: 184 },
+  { title: "Obsessed", artist: "Riar Saab, Abhijay Sharma", duration: 190 },
+  { title: "Love Dose", artist: "Yo Yo Honey Singh", duration: 224 },
+  { title: "Blue Eyes", artist: "Yo Yo Honey Singh", duration: 221 },
+  { title: "Brown Rang", artist: "Yo Yo Honey Singh", duration: 179 },
+  { title: "Desi Kalakaar", artist: "Yo Yo Honey Singh", duration: 253 },
+  { title: "We Rollin", artist: "Shubh", duration: 199 },
+  { title: "No Love", artist: "Shubh", duration: 170 },
+  { title: 'Arjan Vailly (From "ANIMAL")', artist: "Manan Bhardwaj, Bhupinder Babbal", duration: 182 },
+  { title: "Namo Namo", artist: "Amit Trivedi", duration: 322 },
+  { title: 'Kaise Hua (From "Kabir Singh")', artist: "Vishal Mishra, Manoj Muntashir", duration: 235 },
+  { title: "Pehle Bhi Main", artist: "Vishal Mishra, Raj Shekhar", duration: 250 },
+  { title: 'Satranga (From "ANIMAL")', artist: "Arijit Singh, Shreyas Puranik, Siddharth - Garima", duration: 271 },
+  { title: "Kabira", artist: "Pritam, Tochi Raina, Rekha Bhardwaj, Amitabh Bhattacharya", duration: 223 },
+  { title: "Deva Deva", artist: "Pritam, Arijit Singh, Amitabh Bhattacharya, Jonita Gandhi", duration: 279 },
+  { title: "Kesariya", artist: "Pritam, Arijit Singh, Amitabh Bhattacharya", duration: 268 },
+  { title: "Ishq Wala Love", artist: "Vishal-Shekhar, Shekhar Ravjiani, Salim Merchant, Neeti Mohan", duration: 258 },
+  { title: 'Teri Baaton Mein Aisa Uljha Jiya Title Song (From "Teri Baaton Mein Aisa Uljha Jiya")', artist: "Raghav, Tanishk Bagchi, Asees Kaur", duration: 153 },
+  { title: "Tere Pyaar Mein", artist: "Pritam, Arijit Singh, Amitabh Bhattacharya, Nikhita Gandhi", duration: 266 },
+  { title: "Sooraj Ki Baahon Mein", artist: "Dominique Cerejo, Clinton Cerejo, Loy Mendonsa", duration: 203 },
+  { title: "Main Koi Aisa Geet Gaoon", artist: "Abhijeet, Alka Yagnik", duration: 305 },
+  { title: "Gulabi Aankhen", artist: "Sanam", duration: 198 },
+  { title: "Malang Sajna", artist: "Sachet Tandon, Parampara Tandon, Kumaar, Sachet-Parampara", duration: 159 },
+  { title: 'Kehdoon Tumhen - From "Deewaar"', artist: "Kishore Kumar, Asha Bhosle, R. D. Burman", duration: 222 },
+  { title: 'Kabhi Jo Baadal Barse (From "Jackpot)', artist: "Arijit Singh", duration: 254 },
+  { title: 'Tum Se (From "Teri Baaton Mein Aisa Uljha Jiya")', artist: "Sachin-Jigar, Raghav Chaitanya, Varun Jain, Indraneel", duration: 264 },
+  { title: "Premika Ne Pyar Se", artist: "S. P. Balasubrahmanyam, Udit Narayan, S.P. Pallavi", duration: 161 },
+  { title: "Bol Na Halke Halke", artist: "Shankar-Ehsaan-Loy, Rahat Fateh Ali Khan, Mahalakshmi Iyer, Gulzar", duration: 307 },
+  { title: 'Duniyaa (From "Luka Chuppi")', artist: "Akhil, Dhvani Bhanushali, Kunaal Vermaa, Abhijit Vaghani", duration: 222 },
+  { title: 'Ajab Si (From "Om Shanti Om")', artist: "KK", duration: 242 },
+  { title: "Kajra Mohabbat Wala", artist: "Asha Bhosle, Shamshad Begum", duration: 378 },
+  { title: 'Dilbar Mere - From "Satte Pe Satta"', artist: "Kishore Kumar, Anette, R. D. Burman", duration: 288 },
+  { title: "Aa Chal Ke Tujhe", artist: "Kishore Kumar", duration: 279 },
+  { title: "Main Rang Sharbaton Ka", artist: "Atif Aslam, Chinmayi, Pritam", duration: 263 },
+  { title: "Tera Hone Laga Hoon", artist: "Pritam, Atif Aslam, Alisha Chinai", duration: 300 },
+  { title: 'Pal Pal Dil Ke Paas - Title Track - From "Pal Pal Dil Ke Paas"', artist: "Arijit Singh, Parampara Thakur, Sachet-Parampara, Siddharth - Garima", duration: 255 },
+  { title: "Saibo", artist: "Sachin-Jigar, Shreya Ghoshal, Tochi Raina", duration: 195 },
+  { title: "Main Agar Kahoon", artist: "Sonu Nigam, Shreya Ghoshal", duration: 308 },
+  { title: "Tum Hi Ho Bandhu", artist: "Pritam, Neeraj Shridhar, Kavita Seth, Irshad Kamil", duration: 284 },
+  { title: "Nashe Si Chadh Gayi", artist: "Vishal-Shekhar, Arijit Singh, Caralisa Monteiro, Jaideep Sahni", duration: 238 },
+  { title: "O Rangrez", artist: "Shankar-Ehsaan-Loy, Shreya Ghoshal, Javed Bashir, Yusuf Mohammed, Vajid Ali", duration: 385 },
+  { title: "Ilahi", artist: "Pritam, Arijit Singh, Amitabh Bhattacharya", duration: 229 },
+  { title: "Subha Hone Na De", artist: "Pritam, Mika Singh, Shefali Alvares", duration: 289 },
+  { title: "Yeh Sham Mastani", artist: "Kishore Kumar, R. D. Burman", duration: 277 },
+  { title: "Badtameez Dil", artist: "Pritam, Benny Dayal, Shefali Alvares, Amitabh Bhattacharya", duration: 253 },
+  { title: "Matargashti", artist: "Mohit Chauhan", duration: 328 },
+  { title: "Balam Pichkari", artist: "Pritam, Vishal Dadlani, Shalmali Kholgade, Amitabh Bhattacharya", duration: 289 },
+  { title: "Dilliwaali Girlfriend", artist: "Pritam, Arijit Singh, Sunidhi Chauhan, Kumaar", duration: 261 },
+  { title: "Senorita", artist: "Farhan Akhtar, Hrithik Roshan, Abhay Deol, Maria Del Mar Fernandez", duration: 230 },
+  { title: 'Pyaar Hota Kayi Baar Hai (From "Tu Jhoothi Main Makkaar")', artist: "Pritam, Arijit Singh, Amitabh Bhattacharya, Charan", duration: 216 },
+  { title: 'Hua Main (From "ANIMAL")', artist: "Raghav Chaitanya, Manoj Muntashir, Pritam", duration: 277 },
+  { title: "Why This Kolaveri Di? - The Soup of Love", artist: "Anirudh Ravichander, Dhanush", duration: 260 },
+  { title: 'Ve Kamleya (From "Rocky Aur Rani Kii Prem Kahaani")', artist: "Pritam, Arijit Singh, Shreya Ghoshal, Shadab Faridi, Altamash Faridi, Amitabh Bhattacharya", duration: 247 },
+  { title: 'Humraah (From "Malang - Unleash The Madness")', artist: "Sachet Tandon, Kunaal Vermaa, The Fusion Project", duration: 300 },
+  { title: "Qaafirana", artist: "Amit Trivedi, Arijit Singh, Nikhita Gandhi", duration: 342 },
+  { title: "Neele Neele Ambar Par - Male Version", artist: "Kalyanji-Anandji, Kishore Kumar", duration: 322 },
+  { title: "Chand Sifarish", artist: "Jatin-Lalit, Shaan, Kailash Kher, Prasoon Joshi", duration: 276 },
+  { title: "O Mere Dil Ke Chain", artist: "Kishore Kumar, R. D. Burman", duration: 277 },
+  { title: "Chaiyya Chaiyya", artist: "Sukhwinder Singh, Sapna Awasthi", duration: 407 },
+  { title: 'Chura Ke Dil Mera (From "Main Khiladi Tu Anari")', artist: "Alka Yagnik, Kumar Sanu", duration: 469 },
+  { title: 'Milne Hai Mujhse Aayi (From "Aashiqui 2")', artist: "Arijit Singh", duration: 296 },
+  { title: 'Ik Vaari Aa (From "Raabta")', artist: "Pritam, Arijit Singh", duration: 275 },
+  { title: "Chaand Baaliyan", artist: "Aditya A", duration: 103 },
+  { title: "Pee Loon", artist: "Pritam, Mohit Chauhan, Irshad Kamil", duration: 286 },
+  { title: "Mahiye Jinna Sohna", artist: "Darshan Raval", duration: 181 },
+  { title: "Tum Se Hi", artist: "Pritam, Mohit Chauhan, Irshad Kamil", duration: 321 },
+  { title: 'Hothon Se Chhu Lo Tum - From "Prem Geet"', artist: "Jagjit Singh", duration: 298 },
+  { title: "Kabhi Kabhi Aditi", artist: "Rashid Ali", duration: 219 },
+  { title: "Hasi Ban Gaye", artist: "Ami Mishra, Kunaal Vermaa, KASYAP, VIBIE", duration: 165 },
+  { title: "Abhi Na Jao Chhod Kar", artist: "Asha Bhosle, Mohammed Rafi", duration: 255 },
+  { title: "Khairiyat", artist: "Pritam, Arijit Singh", duration: 280 },
+  { title: "Zaalima", artist: "Arijit Singh, Harshdeep Kaur", duration: 299 },
+  { title: "Surili Akhiyon Wale", artist: "Sajid-Wajid, Rahat Fateh Ali Khan, Suzanne D'Mello, Gulzar", duration: 332 },
+  { title: "Lag Ja Gale Se Phir", artist: "Lata Mangeshkar", duration: 258 },
+  { title: "Kahani Suno 2.0", artist: "Kaifi Khalil", duration: 174 },
+  { title: "Deewane Hum Nahi Hote", artist: "Aditya Yadav", duration: 253 },
+  { title: "Sawaar Loon", artist: "Monali Thakur, Amit Trivedi", duration: 255 },
+  { title: 'Tujhe Kitna Chahne Lage (From "Kabir Singh")', artist: "Arijit Singh, Mithoon", duration: 285 },
+  { title: "Shayad", artist: "Pritam, Arijit Singh", duration: 248 },
+  { title: 'O Bedardeya (From "Tu Jhoothi Main Makkaar")', artist: "Pritam, Arijit Singh, Amitabh Bhattacharya", duration: 313 },
+  { title: 'Bekhayali (From "Kabir Singh")', artist: "Sachet Tandon, Sachet-Parampara", duration: 372 },
+  { title: "Main Pal Do Pal Ka Shair Hoon", artist: "Mukesh", duration: 204 },
+  { title: "Saari Duniya Jalaa Denge", artist: "Jaani, B Praak", duration: 182 },
+  { title: "Darkhaast", artist: "Mithoon, Arijit Singh, Sunidhi Chauhan, Sayeed Quadri", duration: 374 },
+  { title: "Let Me Down Slowly", artist: "Alec Benjamin", duration: 169 },
+  { title: "Dusk Till Dawn (feat. Sia) - Radio Edit", artist: "ZAYN, Sia", duration: 239 },
+  { title: "Hymn for the Weekend", artist: "Coldplay", duration: 258 },
+  { title: "Alone, Pt. II", artist: "Alan Walker, Ava Max", duration: 179 },
+  { title: "Dandelions", artist: "Ruth B.", duration: 234 },
+  { title: "Night Changes", artist: "One Direction", duration: 227 },
+  { title: "death bed (coffee for your head)", artist: "Powfu, beabadoobee", duration: 173 },
+  { title: "People You Know", artist: "Selena Gomez", duration: 195 },
+  { title: "Memories", artist: "Maroon 5", duration: 189 },
+  { title: "Love Me Like You Do", artist: "Ellie Goulding", duration: 254 },
+  { title: "a thousand years", artist: "Christina Perri", duration: 285 },
+  { title: "Perfect", artist: "Ed Sheeran", duration: 263 },
+  { title: "MIDDLE OF THE NIGHT", artist: "Elley Duh\xE9", duration: 184 },
+  { title: "Stereo Hearts (feat. Adam Levine)", artist: "Gym Class Heroes, Adam Levine", duration: 211 },
+  { title: "Shape of You", artist: "Ed Sheeran", duration: 234 },
+  { title: "Cheap Thrills", artist: "Sia", duration: 212 },
+  { title: "Despacito", artist: "Luis Fonsi, Daddy Yankee", duration: 229 },
+  { title: "Invisible", artist: "Zeus X Crona, Julius Dreisig", duration: 201 },
+  { title: "Closer", artist: "The Chainsmokers, Halsey", duration: 245 },
+  { title: "Lover", artist: "Taylor Swift", duration: 221 },
+  { title: 'Bye Bye Bye (Theme from "Deadpool & Wolverine")', artist: "Birdie Ventura", duration: 201 },
+  { title: "Thunder", artist: "Imagine Dragons", duration: 187 },
+  { title: "60 Years Old", artist: "7 Years in Tibet", duration: 231 },
+  { title: "As It Was", artist: "DJ Challenge X", duration: 159 },
+  { title: "Mary On A Cross", artist: "Ghost", duration: 245 },
+  { title: "Happy Nation", artist: "Ace of Base", duration: 255 },
+  { title: "Mortals", artist: "Warriyo", duration: 228 },
+  { title: "I Wanna Be Yours", artist: "Arctic Monkeys", duration: 184 },
+  { title: "Skyfall", artist: "Adele", duration: 286 },
+  { title: "DARKSIDE", artist: "Neoni", duration: 168 },
+  { title: "Starboy", artist: "The Weeknd, Daft Punk", duration: 230 },
+  { title: "Blinding Lights", artist: "The Weeknd", duration: 200 },
+  { title: "Heat Waves", artist: "Glass Animals", duration: 239 },
+  { title: "Co2", artist: "Prateek Kuhad", duration: 164 },
+  { title: "Believer", artist: "Imagine Dragons", duration: 204 },
+  { title: "One Dance", artist: "Drake, Wizkid, Kyla", duration: 174 },
+  { title: "No Lie", artist: "Sean Paul, Dua Lipa", duration: 221 },
+  { title: 'Kya Mujhe Pyar Hai (From "Woh Lamhe")', artist: "Pritam, KK", duration: 267 },
+  { title: 'Makhna - From "Drive"', artist: "Tanishk Bagchi, Yasser Desai, Asees Kaur", duration: 183 },
+  { title: 'Phir Aur Kya Chahiye (From "Zara Hatke Zara Bachke")', artist: "Sachin-Jigar, Arijit Singh, Amitabh Bhattacharya", duration: 266 },
+  { title: 'Sajni (From "Laapataa Ladies")', artist: "Ram Sampath, Arijit Singh, Prashant Pandey", duration: 170 },
+  { title: "Make Some Noise For The Desi Boyz", artist: "Pritam, KK, Bob", duration: 244 },
+  { title: "Jab Tak", artist: "Armaan Malik", duration: 174 },
+  { title: "Subhanallah", artist: "Pritam, Sreerama Chandra, Shilpa Rao, Amitabh Bhattacharya", duration: 250 },
+  { title: 'Akhiyaan Gulaab (From "Teri Baaton Mein Aisa Uljha Jiya")', artist: "Mitraz", duration: 171 },
+  { title: "Tumse Milke Dil Ka", artist: "Sonu Nigam, Sabri Brothers", duration: 359 },
+  { title: "Soch Na Sake", artist: "Amaal Mallik, Arijit Singh, Tulsi Kumar", duration: 281 },
+  { title: "Main Rahoon Ya Na Rahoon", artist: "Amaal Mallik, Armaan Malik, Rashmi Virag", duration: 309 },
+  { title: "Aaj Se Teri", artist: "Amit Trivedi, Arijit Singh", duration: 312 },
+  { title: "Luka Chuppi", artist: "A.R. Rahman, Lata Mangeshkar", duration: 397 },
+  { title: "Bulleya", artist: "Vishal-Shekhar, Papon, Irshad Kamil", duration: 357 },
+  { title: "Saaiyaan", artist: "Salim\u2013Sulaiman, Rahat Fateh Ali Khan", duration: 210 },
+  { title: "Yeh Raaten Yeh Mausam", artist: "Sanam, Simran Sehgal", duration: 209 },
+  { title: "Mere Samnewali Khidki Mein", artist: "Kishore Kumar, R. D. Burman", duration: 173 },
+  { title: "Dekha Ek Khwab - II", artist: "Lata Mangeshkar, Kishore Kumar", duration: 321 },
+  { title: "Chala Jata Hoon", artist: "Kishore Kumar, R. D. Burman", duration: 270 },
+  { title: "Mere Sapnon Ki Rani", artist: "Kishore Kumar, S. D. Burman", duration: 301 },
+  { title: "Ve Haaniyaan", artist: "Danny, Avvy Sra, Sagar", duration: 240 },
+  { title: "Dil Deke Dekho Dil Deke Dekho", artist: "Mohammed Rafi", duration: 253 },
+  { title: "nadaaniyan", artist: "Akshath", duration: 171 },
+  { title: 'Tainu Khabar Nahi - From "Munjya"', artist: "Sachin-Jigar, Arijit Singh", duration: 188 },
+  { title: 'Mast Magan (From "2 States")', artist: "Arijit Singh, Chinmayi", duration: 280 },
+  { title: "O Maahi", artist: "Pritam, Arijit Singh, Irshad Kamil", duration: 233 },
+  { title: "Kun Faya Kun", artist: "A.R. Rahman, Javed Ali, Mohit Chauhan", duration: 470 },
+  { title: 'Aaj Ki Raat (From "Stree 2")', artist: "Sachin-Jigar, Madhubanti Bagchi, Divya Kumar, Amitabh Bhattacharya", duration: 229 },
+  { title: "Heeriye (feat. Arijit Singh)", artist: "Jasleen Royal, Arijit Singh, Dulquer Salmaan", duration: 195 },
+  { title: 'Sooraj Dooba Hain (From "Roy")', artist: "Arijit Singh, Aditi Singh Sharma", duration: 265 },
+  { title: "Saudebazi (Encore)", artist: "Pritam, Javed Ali", duration: 355 },
+  { title: 'Khoobsurat (From "Stree 2")', artist: "Sachin-Jigar, Vishal Mishra, Amitabh Bhattacharya", duration: 245 },
+  { title: 'Tumhare Hi Rahenge Hum (From "Stree 2")', artist: "Sachin-Jigar, Varun Jain, Shilpa Rao, Amitabh Bhattacharya", duration: 230 },
+  { title: "Soulmate", artist: "Badshah, Arijit Singh", duration: 214 },
+  { title: "Sajde", artist: "Shankar-Ehsaan-Loy, Arijit Singh, Nihira Joshi, Gulzar", duration: 325 },
+  { title: "Ranchhod Rangila", artist: "Rajesh Ahir, Sabhiben Ahir", duration: 277 },
+  { title: "Gori Radha Ne Kado Kaan", artist: "Kirtidan Gadhvi", duration: 327 },
+  { title: "Rang Bhini Radha", artist: "Aditya Gadhvi", duration: 247 },
+  { title: "Radha Rani Lage", artist: "Simpal Kharel", duration: 229 },
+  { title: "Pavli Lai Ne Huto Pavaghad Gaiti", artist: "Jyoti Vanjara", duration: 141 },
+  { title: "Dakla", artist: "Bandish Projekt, Aishwarya Joshi, MC Tod FoD, Swadesi", duration: 261 },
+  { title: "Moti Veraana (From Songs of Faith)", artist: "Amit Trivedi, Osman Mir", duration: 256 },
+  { title: "Tari Madh Mithi Madh Mithi Vaate", artist: "Jigardan Gadhavi", duration: 124 },
+  { title: "Mor Bani Thanghat Kare", artist: "Sanjay Leela Bhansali, Osman Mir, Aditi Paul, Siddharth - Garima", duration: 238 },
+  { title: "Bhagvan Pan Bhulo Padyo", artist: "Divya Chaudhry, Vinay Nayak", duration: 405 },
+  { title: "Kapda Matching Karva Che", artist: "Kaushik Bharwad, Hina Meer", duration: 367 },
+  { title: "Vichudo", artist: "Kinjal Dave", duration: 183 },
+  { title: "\u0AB9\u0AC1\u0A82 \u0A97\u0ACB\u0A95\u0AC1\u0AB3 \u0AA8\u0ACB \u0A97\u0ACB\u0AB5\u0ABE\u0AB3\u0ABF\u0AAF\u0ACB", artist: "Atul Purohit", duration: 274 },
+  { title: "TETUDO 2", artist: "Geeta Rabari, Rahul Munjariya", duration: 277 },
+  { title: "Gal Goto Me Zuki Ne Lidho", artist: "Geeta Rabari", duration: 119 },
+  { title: "Rona Ser Ma", artist: "Geeta Rabari", duration: 296 },
+  { title: "Mogal Chhedta", artist: "Kirtidan Gadhvi", duration: 63 },
+  { title: "Maru Man Mohi Gayu", artist: "Santvani Trivedi", duration: 269 },
+  { title: "Badan Pe Sitare Lapete Huye", artist: "Mohammed Rafi", duration: 288 },
+  { title: "Aajkal Tere Mere Pyar Ke Charche", artist: "Suman Kalyanpur, Mohammed Rafi", duration: 309 },
+  { title: "Hai Apna Dil To Aawara - Happy", artist: "Hemant Kumar, S. D. Burman", duration: 262 },
+  { title: "Mann Mera", artist: "Gajendra Verma", duration: 200 },
+  { title: "Baghon Mein Bahar Hai", artist: "Lata Mangeshkar, Mohammed Rafi, S. D. Burman", duration: 232 },
+  { title: "Achha To Hum Chalte Hain", artist: "Lata Mangeshkar, Kishore Kumar, Laxmikant\u2013Pyarelal", duration: 299 },
+  { title: "Bheegi Bheegi Raaton Mein", artist: "Lata Mangeshkar, Kishore Kumar, R. D. Burman", duration: 229 },
+  { title: "Gulabi", artist: "Sachin-Jigar, Jigar Saraiya, Priya Saraiya, Jaideep Sahni", duration: 231 },
+  { title: "Zindagi Ke Safar Mein", artist: "Kishore Kumar, R. D. Burman", duration: 399 },
+  { title: 'Aap Ke Aa Jane Se (From "Khudgarz")', artist: "Sadhana Sargam, Mohammed Aziz", duration: 432 },
+  { title: "Ek Ajnabee Haseena Se", artist: "Kishore Kumar, R. D. Burman", duration: 266 },
+  { title: "Kora Kagaz Tha Yeh Man Mera", artist: "Lata Mangeshkar, Kishore Kumar, S. D. Burman", duration: 339 },
+  { title: "Pyar Diwana Hota Hai", artist: "Kishore Kumar, R. D. Burman", duration: 284 },
+  { title: "Roop Tera Mastana", artist: "Kishore Kumar, S. D. Burman", duration: 225 },
+  { title: 'Gore Rang Pe Itna Gumaan Na Kar - From "Roti"', artist: "Kishore Kumar, Lata Mangeshkar", duration: 292 },
+  { title: "Ek Main Aur Ek Tu", artist: "Asha Bhosle, Kishore Kumar, R. D. Burman", duration: 290 },
+  { title: "Haan Ke Haan", artist: "Sohail Sen, Monali Thakur, Kausar Munir", duration: 204 },
+  { title: "Ek Din Aap", artist: "Kumar Sanu, Alka Yagnik", duration: 266 },
+  { title: "Suniyan Suniyan", artist: "Juss, MixSingh", duration: 198 },
+  { title: 'Chogada (From "Loveyatri")', artist: "Darshan Raval, Asees Kaur, Lijo George-Dj Chetas", duration: 250 },
+  { title: "Kesariyo Rang", artist: "Lijo George-Dj Chetas, Asees Kaur, Dev Negi", duration: 193 },
+  { title: "Manda Lidha Mohi Raj - Saiyar Mori Re", artist: "Umesh Barot, Ishani Dave", duration: 164 },
+  { title: 'Shubhaarambh - From "Kai Po Che"', artist: "Amit Trivedi, Shruti Pathak, Divya Kumar", duration: 234 },
+  { title: "Dholida", artist: "Udit Narayan, Neha Kakkar, Palak Muchhal, Raja Hasan, Tanishk Bagchi, Shabbir Ahmed", duration: 216 },
+  { title: "Charka", artist: "Mukhtar Sahota", duration: 341 },
+  { title: "Hawayein", artist: "Pritam, Arijit Singh", duration: 290 },
+  { title: 'Tere Hawaale (From "Laal Singh Chaddha")', artist: "Pritam, Arijit Singh, Shilpa Rao", duration: 346 },
+  { title: "Afreen Afreen", artist: "Rahat Fateh Ali Khan", duration: 394 },
+  { title: "Radha Kaise Na Jale", artist: "Asha Bhosle, Udit Narayan, Vaishali Samant, A.R. Rahman", duration: 335 },
+  { title: "Tum Prem Ho - Reprise", artist: "Mohit Lalwani, Bharat Kamal", duration: 289 },
+  { title: "Khaike Paan Banaras Wala", artist: "Kishore Kumar, Kalyanji-Anandji", duration: 237 },
+  { title: "Apni To Jaise Taise", artist: "Kishore Kumar, Kalyanji-Anandji", duration: 309 },
+  { title: "Mere Angne Men", artist: "Amitabh Bachchan, Kalyanji-Anandji", duration: 307 },
+  { title: "De De Pyar De", artist: "Kishore Kumar", duration: 345 },
+  { title: "Intaha Ho Gai Intezar Ki", artist: "Kishore Kumar, Asha Bhosle", duration: 530 },
+  { title: 'Jahan Teri Yeh Nazar Hai - From "Kaalia"', artist: "Kishore Kumar, R. D. Burman", duration: 327 },
+  { title: "Jab Koi Baat Bigad Jaye", artist: "Kumar Sanu, Sadhana Sargam", duration: 474 },
+  { title: "Tera Rastaa Chhodoon Na", artist: "Vishal-Shekhar, Amitabh Bhattacharya, Anusha Mani", duration: 253 },
+  { title: "Bade Achhe Lagte Hain", artist: "Amit Kumar, R. D. Burman", duration: 312 },
+  { title: 'Le Aaunga (From "Satyaprem Ki Katha")', artist: "Tanishk Bagchi, Arijit Singh", duration: 244 },
+  { title: "Choo Lo", artist: "The Local Train", duration: 234 },
+  { title: "Aaoge Tum Kabhi", artist: "The Local Train", duration: 313 },
+  { title: "Die With A Smile", artist: "Lady Gaga, Bruno Mars", duration: 252 },
+  { title: "Ishq Hai", artist: "Anurag Saikia, Raj Shekhar, Romy, Amarabha Banerjee, Varun Jain, Madhubanti Bagchi, Mismatched - Cast", duration: 313 },
+  { title: "Shiddat Title Track", artist: "Manan Bhardwaj", duration: 231 },
+  { title: "Jug Jug Jeeve", artist: "Sachet Tandon, Parampara Tandon, Sachin-Jigar", duration: 199 },
+  { title: "Iktara", artist: "Amit Trivedi, Kavita Seth, Amitabh Bhattacharya", duration: 253 },
+  { title: "Haule Haule", artist: "Salim\u2013Sulaiman, Sukhwinder Singh, Jaideep Sahni", duration: 264 },
+  { title: "Kisi Ki Muskurahaton Se", artist: "Mukesh", duration: 269 },
+  { title: "blue", artist: "yung kai", duration: 214 },
+  { title: 'Raanjhanaa (From "Raanjhanaa")', artist: "A.R. Rahman, Jaswinder Singh, Shiraz Uppal", duration: 254 },
+  { title: "Mitwa", artist: "Shankar-Ehsaan-Loy, Shankar Mahadevan, Caralisa Monteiro, Shafqat Amanat Ali", duration: 383 },
+  { title: "Millionaire", artist: "Yo Yo Honey Singh", duration: 199 },
+  { title: "Jatt Mehkma", artist: "Yo Yo Honey Singh", duration: 195 },
+  { title: "Brown Munde", artist: "AP Dhillon, Gminxr, Gurinder Gill, Shinda Kahlon", duration: 254 },
+  { title: "Rang Lageya", artist: "Mohit Chauhan, Rochak Kohli", duration: 228 },
+  { title: "Sanson Ki Mala Pe", artist: "Nusrat Fateh Ali Khan", duration: 1801 },
+  { title: "Ye Jo Halka Halka Saroor", artist: "Nusrat Fateh Ali Khan", duration: 1786 },
+  { title: "O Re Piya", artist: "Salim\u2013Sulaiman, Rahat Fateh Ali Khan, Jaideep Sahni", duration: 380 },
+  { title: 'Raanjhan (From "Do Patti")', artist: "Sachet-Parampara, Parampara Tandon, Kausar Munir", duration: 240 },
+  { title: "Ek Ladki Bheegi Bhagi Si", artist: "Kishore Kumar, S. D. Burman", duration: 237 },
+  { title: "Aap Ki Ankhon Mein Kuch", artist: "Kishore Kumar, Lata Mangeshkar", duration: 249 },
+  { title: "Pyar Hua Iqrar Hua", artist: "Manna Dey, Lata Mangeshkar", duration: 260 },
+  { title: 'Chhu Kar Mere Manko - From "Yaarana"', artist: "Kishore Kumar", duration: 253 },
+  { title: 'Mere Mehboob Mere Sanam (From "Bad Newz")', artist: "Udit Narayan, Alka Yagnik, Anu Malik, Javed Akhtar, Lijo George-Dj Chetas", duration: 182 },
+  { title: "Jeena Yahan Marna Yahan - With Dialogue", artist: "Mukesh", duration: 269 },
+  { title: "Likhe Jo Khat Tujhe", artist: "Mohammed Rafi", duration: 274 },
+  { title: 'Gulabi Ankhen - From "The Train"', artist: "Mohammed Rafi, R. D. Burman", duration: 197 },
+  { title: "Achha Ji Main Haari Chalo", artist: "Asha Bhosle, Mohammed Rafi, S. D. Burman", duration: 208 },
+  { title: "Ye Ladka Hay Allah Kaisa Hai Diwana", artist: "Asha Bhosle, Mohammed Rafi, R. D. Burman", duration: 330 },
+  { title: "O Haseena Zulfonwale Jane Jahan", artist: "Asha Bhosle, Mohammed Rafi, R. D. Burman", duration: 415 },
+  { title: "Kya Khoob Lagti Ho", artist: "Mukesh, Kanchan, Kalyanji-Anandji", duration: 239 },
+  { title: "Chura Liya Hai Tumne Jo Dil Ko", artist: "Asha Bhosle, Mohammed Rafi, R. D. Burman", duration: 288 },
+  { title: "Dil To Pagal Hai", artist: "Uttam Singh, Lata Mangeshkar, Udit Narayan, Anand Bakshi", duration: 336 },
+  { title: "mathura ma vagi morli", artist: "Aditya Gadhvi", duration: 129 },
+  { title: "Vhalam Aavo Ne", artist: "Sachin-Jigar, Jigardan Gadhavi, Niren Bhatt", duration: 319 },
+  { title: "Dhun Laagi", artist: "Sachin-Jigar, Siddharth Amit Bhavsar, Niren Bhatt", duration: 274 },
+  { title: "Chalao Na Naino Se", artist: "Himesh Reshammiya, Shreya Ghoshal", duration: 341 },
+  { title: "Kon Disa Mein - Extended Version", artist: "Varsha Singh Dhanoa, Guru Dhanoa, Maddy Sharma", duration: 360 },
+  { title: "Ek Hasina Thi Ek Diwana Tha - Jhankar Beats", artist: "Asha Bhosle, Kishore Kumar, Rishi Kapoor, DJ Harshit Shah, DJ MHD IND", duration: 223 },
+  { title: "Ek Patan Sher Ni", artist: "Aditya Gadhvi", duration: 110 },
+  { title: "Nayan", artist: "Dhvani Bhanushali, Jubin Nautiyal, Manoj Muntashir", duration: 255 },
+  { title: "Yeh Fitoor Mera", artist: "Amit Trivedi, Arijit Singh", duration: 283 },
+  { title: "Aashiq Tera", artist: "Sohail Sen, Mudassar Aziz, Altamash Faridi", duration: 295 },
+  { title: "Bhar Do Jholi Meri", artist: "Pritam, Adnan Sami, Kausar Munir", duration: 499 },
+  { title: "Koi Ladki Hai", artist: "Uttam Singh, Lata Mangeshkar, Udit Narayan, Anand Bakshi", duration: 331 },
+  { title: 'The Hanging Tree - From "The Hunger Games: Mockingjay" Soundtrack', artist: "James Newton Howard, Jennifer Lawrence", duration: 219 },
+  { title: "Pal", artist: "Javed-Mohsin, Arijit Singh, Shreya Ghoshal, Kunaal Vermaa, Prashant Ingole", duration: 247 },
+  { title: "Gori Gori Gori Gori", artist: "Anu Malik, KK, Shreya Ghoshal, Sunidhi Chauhan", duration: 269 },
+  { title: "Beqarar Karke Hamen Yun Na Jaiye", artist: "Hemant Kumar", duration: 190 },
+  { title: "Soniyo", artist: "Raju Singh, Sonu Nigam, Shreya Ghoshal", duration: 328 },
+  { title: 'Pal Pal Dil Ke Paas - From "Blackmail"', artist: "Kishore Kumar", duration: 328 },
+  { title: "Aaja Piya Tohe Pyar Doon", artist: "Lata Mangeshkar, R. D. Burman", duration: 251 },
+  { title: "Chhod Do Aanchal Zamana Kya Kahega", artist: "Kishore Kumar, Asha Bhosle, S. D. Burman", duration: 250 },
+  { title: "Matkar Maya Ko Ahankar", artist: "Kabir Cafe", duration: 366 },
+  { title: "Guzarish", artist: "A.R. Rahman, Javed Ali, Prasoon Joshi", duration: 327 },
+  { title: "Apna Bana Le", artist: "Sachin-Jigar, Arijit Singh, Amitabh Bhattacharya", duration: 262 },
+  { title: "Phir Milenge Chalte Chalte", artist: "Salim\u2013Sulaiman, Sonu Nigam, Jaideep Sahni", duration: 394 },
+  { title: "Main Hoon Na", artist: "Sonu Nigam, Shreya Ghoshal", duration: 361 },
+  { title: "Sapphire", artist: "Ed Sheeran", duration: 179 },
+  { title: 'Dekhha Tenu (From "Mr. And Mrs. Mahi")', artist: "Mohammad Faiz, Jaani", duration: 282 },
+  { title: "Vaa Vaaya Ne Vaadal", artist: "Aditya Gadhvi", duration: 96 },
+  { title: 'Tum Tak (From "Raanjhanaa")', artist: "A.R. Rahman, Javed Ali, KIRTI SAGATHIA, Pooja AV", duration: 304 },
+  { title: "Paro", artist: "Aditya Rikhari, UNPLG'd", duration: 70 },
+  { title: "Sahiba", artist: "Aditya Rikhari", duration: 190 },
+  { title: "Barbaad", artist: "The Rish, Jubin Nautiyal", duration: 357 },
+  { title: "Main Zindagi Ka Saath Nibhata Chala Gaya", artist: "Mohammed Rafi", duration: 231 },
+  { title: 'Dhun (From "Saiyaara")', artist: "Mithoon, Arijit Singh", duration: 277 },
+  { title: "Bol Do Na Zara", artist: "Armaan Malik", duration: 293 },
+  { title: 'Chale Aana (From "De De Pyaar De")', artist: "Amaal Mallik, Armaan Malik, Kunaal Vermaa", duration: 271 },
+  { title: "Tum Agar Saath Dene Ka Vada Karo", artist: "Mahendra Kapoor", duration: 391 },
+  { title: 'Saiyaara (From "Saiyaara")', artist: "Tanishk Bagchi, Faheem Abdullah, Arslan Nizami, Irshad Kamil", duration: 371 },
+  { title: "Ek Ladki Ko Dekha Toh Aisa Laga - Title Track", artist: "Darshan Raval, Rochak Kohli, R. D. Burman", duration: 155 },
+  { title: "Tera Chehra", artist: "Himesh Reshammiya, Arijit Singh", duration: 274 },
+  { title: "Naam Chale", artist: "Vikram Sarkar", duration: 149 },
+  { title: 'All The Stars (with SZA) - From "Black Panther: The Album"', artist: "Kendrick Lamar, SZA", duration: 232 },
+  { title: "Ham Tere Pyar Mein", artist: "Lata Mangeshkar", duration: 287 },
+  { title: "Hua Shankhnaad (Dussehra Title Track)", artist: "Kailash Kher", duration: 253 },
+  { title: "In Ankhon Ki Masti", artist: "Asha Bhosle", duration: 343 },
+  { title: "Kabhi Kabhi Mere Dil Mein (Duet)", artist: "Mukesh, Lata Mangeshkar", duration: 299 },
+  { title: "Babuji Dheere Chalna", artist: "Geeta Dutt", duration: 208 },
+  { title: "Ransom", artist: "Lil Tecca", duration: 131 },
+  { title: "Koi Mil Gaya", artist: "Jatin-Lalit, Kavita Krishnamurthy, Udit Narayan, Alka Yagnik", duration: 438 },
+  { title: "Kuch Kuch Hota Hai", artist: "Jatin-Lalit, Udit Narayan, Alka Yagnik", duration: 298 },
+  { title: "Ladki Badi Anjani Hai", artist: "Jatin-Lalit, Kumar Sanu, Alka Yagnik", duration: 382 },
+  { title: "Aankhein Khuli", artist: "Jatin-Lalit, Lata Mangeshkar, Udit Narayan, Udbhav, Manohar Shetty, Ishaan, Shweta Pandit, Sonali Bhatawdekar, Pritha Mazumdar, Anand Bakshi", duration: 423 },
+  { title: 'Dhurandhar - Title Track (From "Dhurandhar")', artist: "Shashwat Sachdev, Hanumankind, Jasmine Sandlas, Sudhir Yaduvanshi, Charanjit Ahuja, Muhammad Sadiq, Ranjit Kaur, Babu Singh Maan", duration: 156 },
+  { title: "Vardaan", artist: "Ajey Nagar (CarryMinati), Wily Frenzy", duration: 202 },
+  { title: "Yalgaar", artist: "Ajey Nagar (CarryMinati), Wily Frenzy", duration: 196 },
+  { title: 'Rabba Janda - From "Mission Majnu"', artist: "Jubin Nautiyal", duration: 245 },
+  { title: "Tere Liye", artist: "Atif Aslam, Shreya Ghoshal, Sachin Gupta, Sameer Anjaan", duration: 280 },
+  { title: 'Ishq Jalakar - Karvaan (From "Dhurandhar")', artist: "Shashwat Sachdev, Shahzad Ali, Subhadeep Das Chowdhury, Armaan Khan, Roshan, Irshad Kamil, Sahir Ludhianvi", duration: 251 },
+  { title: "Aapke Pyaar Mein Hum", artist: "Nadeem Shravan, Alka Yagnik, Sameer Anjaan", duration: 328 },
+  { title: "Main Agar Saamne", artist: "Nadeem Shravan, Alka Yagnik, Abhijeet, Sameer Anjaan", duration: 346 },
+  { title: "Tera Fitoor", artist: "Arijit Singh, Himesh Reshammiya, Kumaar", duration: 310 },
+  { title: "Gehra Hua", artist: "Shashwat Sachdev, Arijit Singh, Irshad Kamil, Armaan Khan", duration: 362 },
+  { title: "End of Beginning", artist: "Djo", duration: 159 },
+  { title: 'Running Up The Hill (A Deal With God) [From "Stranger Things"]', artist: "Geek Music", duration: 285 },
+  { title: "Humnava Mere", artist: "Jubin Nautiyal, Rocky - Shiv, Manoj Muntashir, Rocky Khanna", duration: 329 },
+  { title: "Sunn Raha Hai (Female Version)", artist: "Shreya Ghoshal, Ankit Tiwari, Sandeep Nath", duration: 315 },
+  { title: 'Kaun Tujhe (From "M.S.Dhoni - The Untold Story")', artist: "Palak Muchhal", duration: 241 },
+  { title: 'Thodi Jagah (From "Marjaavaan")', artist: "Arijit Singh, Tanishk Bagchi, Rashmi Virag", duration: 218 },
+  { title: "Banjaara", artist: "Mohammed Irfan, Mithoon", duration: 337 },
+  { title: "Saiyaara", artist: "Sohail Sen, Mohit Chauhan, Tarannum Malik Jain, Kausar Munir", duration: 252 },
+  { title: "Another Love", artist: "Tom Odell", duration: 244 },
+  { title: "The Winner Takes It All", artist: "ABBA", duration: 295 },
+  { title: "Ordinary", artist: "Alex Warren", duration: 187 },
+  { title: "Shahbaz Qalander", artist: "Nusrat Fateh Ali Khan", duration: 772 },
+  { title: "Sanson Ki Mala", artist: "Rahat Fateh Ali Khan", duration: 286 },
+  { title: "Dekhte Dekhte", artist: "Atif Aslam, Nusrat Fateh Ali Khan, Rochak Kohli, Manoj Muntashir", duration: 256 },
+  { title: "Har Har Gange", artist: "Sachet-Parampara, Arijit Singh, Siddharth - Garima", duration: 183 },
+  { title: "Kanha - Thumri", artist: "Sajid-Wajid, Rekha Bhardwaj, Sharib Sabri, Toshi Sabri, Shabab Sabri", duration: 284 },
+  { title: "Bairan", artist: "Banjaare", duration: 151 },
+  { title: "Sheesha - Aakhya Mai Aakh Ghali Jo Bairan", artist: "Mitta Ror, Swara Verma", duration: 196 },
+  { title: "Such Keh Raha Hai", artist: "KK", duration: 329 },
+  { title: "Uden Jab Jab Zulfen Teri", artist: "Mohammed Rafi, Asha Bhosle", duration: 296 },
+  { title: "Uff Teri Adaa", artist: "Shankar Mahadevan, Alyssa Mendonsa", duration: 304 },
+  { title: "Is This Love", artist: "Mohit Chauhan, Shreya Ghoshal, Pritam", duration: 329 },
+  { title: "Pahli Mutthi Lete Hi Prabhu Ne Swarg Sudama Ke Naam Kiya Hai", artist: "Aashish Akela", duration: 145 },
+  { title: "Rahein Na Rahein Hum - From \u201CThamma\u201D", artist: "Sachin-Jigar, Soumyadeep Sarkar, Amitabh Bhattacharya", duration: 240 },
+  { title: "back to friends", artist: "sombr", duration: 199 },
+  { title: "Suhana Safar Aur Yeh Mausam", artist: "Mukesh", duration: 230 },
+  { title: "Hamen Tumse Pyar Kitna", artist: "Kishore Kumar, R. D. Burman", duration: 241 },
+  { title: "Main Shair To Nahin", artist: "Shailendra Singh, Laxmikant\u2013Pyarelal", duration: 334 },
+  { title: "Zaroorat Hai Zaroorat Hai", artist: "Kishore Kumar", duration: 272 },
+  { title: "Thoda Sa Pyar Hua Hai", artist: "Udit Narayan, Alka Yagnik, Daboo Malik, Faaiz Anwar", duration: 292 },
+  { title: "Ishq Sufiyana (Male)", artist: "Vishal-Shekhar, Kamal Khan", duration: 325 },
+  { title: "Agar Tum Mil Jao - Male Version", artist: "Roop Kumar Rathod, Anu Malik, Udit Narayan", duration: 361 },
+  { title: "Bahut Pyar Karte Hai - Male Version", artist: "S. P. Balasubrahmanyam", duration: 185 },
+  { title: "Chupke Chupke Raat Din", artist: "Ghulam Ali", duration: 469 },
+  { title: "Deewangi Deewangi", artist: "Shaan, Udit Narayan, Shreya Ghoshal, Sunidhi Chauhan, Rahul Saxena, Vishal-Shekhar, Javed Akhtar", duration: 352 },
+  { title: "Levitating", artist: "Dua Lipa", duration: 204 },
+  { title: "Timeless (feat. Playboi Carti)", artist: "The Weeknd, Playboi Carti", duration: 256 },
+  { title: "For A Reason", artist: "Karan Aujla, Ikky", duration: 180 },
+  { title: "Wavy", artist: "Karan Aujla, Jay Trak", duration: 161 },
+  { title: "Winning Speech", artist: "Karan Aujla, Mxrci, Seshnolan", duration: 227 },
+  { title: "STFU", artist: "AP Dhillon, Shinda Kahlon", duration: 175 },
+  { title: "MF Gabhru!", artist: "Karan Aujla, Ikky", duration: 200 },
+  { title: "On Top", artist: "Karan Aujla", duration: 183 },
+  { title: "Khat", artist: "Navjot Ahuja", duration: 296 },
+  { title: "Girls Like You", artist: "Maroon 5", duration: 215 },
+  { title: "Idhar Zara Sa Dekh Lo", artist: "Shikhar, Yashika Sikka", duration: 171 },
+  { title: "Taare", artist: "Farak, 10A, Saswat Balan", duration: 154 },
+  { title: "Parwaaz", artist: "Farak, 10A", duration: 159 }
+];
+const ACCENT_RED = "#FF3B30";
+const ACCENTS = ["#FF3B30", "#E11D2E", "#C81E3A", "#FF6B5B", "#D72638"];
+const SPARKLE_COLORS = ["#FF3B30", "#FFD60A", "#34C759", "#0A84FF", "#BF5AF2", "#FF375F", "#64D2FF"];
+const CHORDS = [
+  [0, 7, 12, 16],
+  [0, 5, 12, 19],
+  [0, 4, 11, 16],
+  [0, 7, 10, 15],
+  [0, 3, 10, 15]
+];
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+function trackKey(t) {
+  return (t.title + "|" + t.artist).toLowerCase();
+}
+function linkKey(t) {
+  return "k" + hashStr(trackKey(t));
+}
+function deriveAudioParams(track) {
+  const h = hashStr(trackKey(track));
+  const root = 90 + h % 90;
+  const chord = CHORDS[h % CHORDS.length];
+  const accent = ACCENTS[h % ACCENTS.length];
+  return { root, chord, accent };
+}
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+function safeGetItem(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+function safeSetItem(key, val) {
+  try {
+    localStorage.setItem(key, val);
+  } catch (e) {
+  }
+}
+const LS_VIDEOS = "myplayz-video-links-v1";
+const LS_API_KEY = "myplayz-yt-api-key";
+const LS_FIREBASE = "myplayz-firebase-url";
+const LS_PLAYLISTS = "myplayz-playlists-v1";
+function loadLocalVideoMap() {
+  try {
+    return JSON.parse(safeGetItem(LS_VIDEOS) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+function saveLocalVideoLink(key, videoId) {
+  const saved = loadLocalVideoMap();
+  saved[key] = videoId;
+  safeSetItem(LS_VIDEOS, JSON.stringify(saved));
+}
+function loadPlaylists() {
+  try {
+    return JSON.parse(safeGetItem(LS_PLAYLISTS) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+function savePlaylistsToStorage(playlists) {
+  safeSetItem(LS_PLAYLISTS, JSON.stringify(playlists));
+}
+function extractVideoId(input) {
+  const s = input.trim();
+  const m = s.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
+  return null;
+}
+function fbBase(firebaseUrl) {
+  return firebaseUrl.replace(/\/$/, "");
+}
+async function fbGetAllVideoLinks(firebaseUrl) {
+  const res = await fetch(`${fbBase(firebaseUrl)}/videoLinks.json`);
+  if (!res.ok) throw new Error(`Firebase read failed (HTTP ${res.status})`);
+  const data = await res.json();
+  return data || {};
+}
+async function fbSetVideoLink(firebaseUrl, key, videoId) {
+  await fetch(`${fbBase(firebaseUrl)}/videoLinks/${key}.json`, {
+    method: "PUT",
+    body: JSON.stringify(videoId)
+  });
+}
+async function searchYoutubeOne(query, apiKey) {
+  var _a, _b, _c, _d;
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query)}&key=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(((_a = body == null ? void 0 : body.error) == null ? void 0 : _a.message) || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return ((_d = (_c = (_b = data.items) == null ? void 0 : _b[0]) == null ? void 0 : _c.id) == null ? void 0 : _d.videoId) || null;
+}
+async function searchYoutubeMulti(query, apiKey, maxResults) {
+  var _a;
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${maxResults || 8}&q=${encodeURIComponent(query)}&key=${apiKey}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(((_a = body == null ? void 0 : body.error) == null ? void 0 : _a.message) || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return (data.items || []).map((it) => {
+    var _a2, _b;
+    return {
+      videoId: it.id.videoId,
+      title: it.snippet.title,
+      channel: it.snippet.channelTitle,
+      thumb: (_b = (_a2 = it.snippet.thumbnails) == null ? void 0 : _a2.default) == null ? void 0 : _b.url
+    };
+  });
+}
+function MusicPlayer() {
+  const [playlists, setPlaylists] = useState(loadPlaylists);
+  const builtInAlbums = useMemo(() => [
+    { id: "my-playz", name: "My playz", tracks: MY_PLAYZ, isPlaylist: false }
+  ], []);
+  const albums = useMemo(() => [
+    ...builtInAlbums,
+    ...Object.keys(playlists).map((name) => ({ id: "pl:" + name, name, tracks: playlists[name], isPlaylist: true }))
+  ], [builtInAlbums, playlists]);
+  const [activeAlbumId, setActiveAlbumId] = useState("my-playz");
+  const album = albums.find((a) => a.id === activeAlbumId) || albums[0];
+  const [index, setIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [time, setTime] = useState(0);
+  const [volume, setVolume] = useState(0.65);
+  const [muted, setMuted] = useState(false);
+  const [shuffle, setShuffle] = useState(false);
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [everPlayed, setEverPlayed] = useState(false);
+  const shuffleHistoryRef = useRef([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [videoMap, setVideoMap] = useState(loadLocalVideoMap);
+  const [linkInput, setLinkInput] = useState("");
+  const [ytReady, setYtReady] = useState(false);
+  const [apiKey, setApiKey] = useState(() => safeGetItem(LS_API_KEY) || "");
+  const [firebaseUrl, setFirebaseUrlState] = useState(() => safeGetItem(LS_FIREBASE) || "");
+  const [autoLinking, setAutoLinking] = useState(false);
+  const [autoLinkProgress, setAutoLinkProgress] = useState({ done: 0, total: 0 });
+  const [autoLinkError, setAutoLinkError] = useState("");
+  const stopAutoLinkRef = useRef(false);
+  const [viewMode, setViewMode] = useState("library");
+  const [libraryTab, setLibraryTab] = useState("home");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [addTarget, setAddTarget] = useState(null);
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const ctxRef = useRef(null);
+  const graphRef = useRef(null);
+  const analyserRef = useRef(null);
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+  const tickRef = useRef(null);
+  const ytPlayerRef = useRef(null);
+  const particlesRef = useRef([]);
+  const isSwipingRef = useRef(false);
+  const track = album.tracks[index] || album.tracks[0] || { title: "\u2014", artist: "\u2014", duration: 0 };
+  const audioParams = useMemo(() => deriveAudioParams(track), [track]);
+  const linkedVideoId = videoMap[linkKey(track)] || null;
+  useEffect(() => {
+    if (!firebaseUrl) return;
+    fbGetAllVideoLinks(firebaseUrl).then((remote) => {
+      setVideoMap((m) => ({ ...m, ...remote }));
+      const local = loadLocalVideoMap();
+      safeSetItem(LS_VIDEOS, JSON.stringify({ ...local, ...remote }));
+    }).catch(() => {
+    });
+  }, [firebaseUrl]);
+  useEffect(() => {
+    window.onYouTubeIframeAPIReady = () => {
+      ytPlayerRef.current = new YT.Player("yt-player", {
+        height: "1",
+        width: "1",
+        playerVars: { playsinline: 1, controls: 0 },
+        events: { onReady: () => setYtReady(true) }
+      });
+    };
+    if (window.YT && window.YT.Player) window.onYouTubeIframeAPIReady();
+  }, []);
+  const stopGraph = useCallback(() => {
+    if (graphRef.current) {
+      const { oscillators, masterGain, lfo } = graphRef.current;
+      const now = ctxRef.current.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.linearRampToValueAtTime(1e-4, now + 0.35);
+      oscillators.forEach((o) => o.stop(now + 0.4));
+      lfo.stop(now + 0.4);
+      graphRef.current = null;
+    }
+  }, []);
+  const buildGraph = useCallback(() => {
+    if (!ctxRef.current) {
+      ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = ctxRef.current.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.connect(ctxRef.current.destination);
+      analyserRef.current = analyser;
+    }
+    const ctx = ctxRef.current;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 1e-4;
+    masterGain.connect(analyserRef.current);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 900;
+    filter.Q.value = 0.7;
+    filter.connect(masterGain);
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.06;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 260;
+    lfo.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+    lfo.start(now);
+    const oscillators = audioParams.chord.map((semitone, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = i === 0 ? "triangle" : "sine";
+      osc.frequency.value = audioParams.root * Math.pow(2, semitone / 12);
+      osc.detune.value = (i - audioParams.chord.length / 2) * 4;
+      const g = ctx.createGain();
+      g.gain.value = 0.22 / audioParams.chord.length;
+      osc.connect(g);
+      g.connect(filter);
+      osc.start(now);
+      return osc;
+    });
+    masterGain.gain.linearRampToValueAtTime(muted ? 1e-4 : volume * 0.5, now + 1.2);
+    graphRef.current = { oscillators, masterGain, filter, lfo };
+  }, [audioParams, volume, muted]);
+  useEffect(() => {
+    const yt = ytPlayerRef.current;
+    if (linkedVideoId && ytReady && yt) {
+      stopGraph();
+      if (isPlaying) {
+        if (yt.getVideoData && yt.getVideoData().video_id !== linkedVideoId) {
+          yt.loadVideoById(linkedVideoId);
+        } else {
+          yt.playVideo();
+        }
+      } else {
+        yt.pauseVideo();
+      }
+      return;
+    }
+    if (isPlaying) {
+      stopGraph();
+      buildGraph();
+    } else {
+      stopGraph();
+    }
+    return () => stopGraph();
+  }, [isPlaying, activeAlbumId, index, linkedVideoId, ytReady]);
+  useEffect(() => {
+    if (graphRef.current && ctxRef.current) {
+      const now = ctxRef.current.currentTime;
+      graphRef.current.masterGain.gain.linearRampToValueAtTime(muted ? 1e-4 : volume * 0.5, now + 0.15);
+    }
+    const yt = ytPlayerRef.current;
+    if (yt && yt.setVolume) {
+      if (muted) yt.mute();
+      else {
+        yt.unMute();
+        yt.setVolume(volume * 100);
+      }
+    }
+  }, [volume, muted]);
+  const next = useCallback(() => {
+    const n = album.tracks.length;
+    if (n === 0) return;
+    if (shuffle && n > 1) {
+      shuffleHistoryRef.current.push(index);
+      let r = index;
+      while (r === index) r = Math.floor(Math.random() * n);
+      setIndex(r);
+    } else {
+      setIndex((i) => (i + 1) % n);
+    }
+    setTime(0);
+  }, [album.tracks.length, shuffle, index]);
+  const prev = useCallback(() => {
+    const n = album.tracks.length;
+    if (n === 0) return;
+    if (shuffle && shuffleHistoryRef.current.length > 0) {
+      setIndex(shuffleHistoryRef.current.pop());
+    } else {
+      setIndex((i) => (i - 1 + n) % n);
+    }
+    setTime(0);
+  }, [album.tracks.length, shuffle]);
+  useEffect(() => {
+    if (isPlaying) {
+      tickRef.current = setInterval(() => {
+        const yt = ytPlayerRef.current;
+        if (linkedVideoId && ytReady && yt && yt.getCurrentTime) {
+          const t = yt.getCurrentTime();
+          const d = yt.getDuration() || track.duration;
+          if (t >= d - 0.4 && d > 0) {
+            next();
+          } else {
+            setTime(t);
+          }
+          return;
+        }
+        setTime((t) => {
+          if (t + 0.25 >= track.duration) {
+            next();
+            return 0;
+          }
+          return t + 0.25;
+        });
+      }, 250);
+    }
+    return () => clearInterval(tickRef.current);
+  }, [isPlaying, track.duration, linkedVideoId, ytReady, next]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx2d = canvas.getContext("2d");
+    const dpr = window.devicePixelRatio || 1;
+    const size = 260;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx2d.scale(dpr, dpr);
+    const draw = () => {
+      ctx2d.clearRect(0, 0, size, size);
+      const cx = size / 2, cy = size / 2;
+      let data = new Uint8Array(64).fill(20);
+      if (analyserRef.current && isPlaying) {
+        const arr = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(arr);
+        data = arr;
+      }
+      for (let r = 0; r < 20; r++) {
+        const baseRadius = 24 + r * 5;
+        const amp = data[r * 2 % data.length] / 255;
+        const wobble = isPlaying ? amp * 3 : 0;
+        ctx2d.beginPath();
+        ctx2d.arc(cx, cy, baseRadius + wobble, 0, Math.PI * 2);
+        ctx2d.strokeStyle = `${audioParams.accent}${r % 3 === 0 ? "55" : "22"}`;
+        ctx2d.lineWidth = r % 3 === 0 ? 1.4 : 0.8;
+        ctx2d.stroke();
+      }
+      ctx2d.beginPath();
+      ctx2d.arc(cx, cy, 20, 0, Math.PI * 2);
+      ctx2d.fillStyle = audioParams.accent;
+      ctx2d.fill();
+      particlesRef.current = particlesRef.current.filter((p) => p.life > 0);
+      particlesRef.current.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy -= 0.03;
+        p.life -= 0.018;
+        ctx2d.save();
+        ctx2d.globalAlpha = Math.max(p.life, 0);
+        ctx2d.fillStyle = p.color;
+        ctx2d.beginPath();
+        ctx2d.arc(p.x, p.y, p.size * 0.9, 0, Math.PI * 2);
+        ctx2d.fill();
+        ctx2d.font = `${p.size * 1.6}px sans-serif`;
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "middle";
+        ctx2d.fillText("\u{1F3B5}", p.x, p.y);
+        ctx2d.restore();
+      });
+      rafRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [audioParams, isPlaying]);
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.artist,
+        album: album.name
+      });
+      navigator.mediaSession.setActionHandler("play", () => setIsPlaying(true));
+      navigator.mediaSession.setActionHandler("pause", () => setIsPlaying(false));
+      navigator.mediaSession.setActionHandler("previoustrack", () => prev());
+      navigator.mediaSession.setActionHandler("nexttrack", () => next());
+    } catch (e) {
+    }
+  }, [track, album.name, prev, next]);
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+    }
+  }, [isPlaying]);
+  const selectAlbum = (id) => {
+    setActiveAlbumId(id);
+    setIndex(0);
+    setTime(0);
+    setIsPlaying(false);
+    setViewMode("library");
+    shuffleHistoryRef.current = [];
+  };
+  const selectTrack = (i) => {
+    setIndex(i);
+    setTime(0);
+    setIsPlaying(true);
+    setPlayerOpen(true);
+    setEverPlayed(true);
+  };
+  const saveThisLink = (key, videoId) => {
+    saveLocalVideoLink(key, videoId);
+    setVideoMap((m) => ({ ...m, [key]: videoId }));
+    if (firebaseUrl) fbSetVideoLink(firebaseUrl, key, videoId).catch(() => {
+    });
+  };
+  const linkCurrentTrack = () => {
+    const id = extractVideoId(linkInput);
+    if (!id) {
+      alert("Couldn't find a video ID in that link \u2014 paste the full YouTube URL.");
+      return;
+    }
+    saveThisLink(linkKey(track), id);
+    setLinkInput("");
+  };
+  const openYoutubeSearch = () => {
+    const q = encodeURIComponent(`${track.title} ${track.artist}`);
+    window.open(`https://www.youtube.com/results?search_query=${q}`, "_blank");
+  };
+  const saveApiKey = (val) => {
+    setApiKey(val);
+    safeSetItem(LS_API_KEY, val);
+  };
+  const saveFirebaseUrl = (val) => {
+    setFirebaseUrlState(val);
+    safeSetItem(LS_FIREBASE, val);
+  };
+  const autoLinkAll = async () => {
+    if (!apiKey) {
+      setAutoLinkError("Paste a YouTube Data API key first.");
+      return;
+    }
+    const unlinked = album.tracks.filter((t) => !videoMap[linkKey(t)]);
+    if (unlinked.length === 0) return;
+    setAutoLinking(true);
+    setAutoLinkError("");
+    setAutoLinkProgress({ done: 0, total: unlinked.length });
+    stopAutoLinkRef.current = false;
+    for (let i = 0; i < unlinked.length; i++) {
+      if (stopAutoLinkRef.current) break;
+      const t = unlinked[i];
+      try {
+        const videoId = await searchYoutubeOne(`${t.title} ${t.artist} official audio`, apiKey);
+        if (videoId) saveThisLink(linkKey(t), videoId);
+        setAutoLinkProgress({ done: i + 1, total: unlinked.length });
+      } catch (e) {
+        setAutoLinkError(e.message.includes("quota") ? "Daily API quota reached \u2014 resume tomorrow, progress is saved." : e.message);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    setAutoLinking(false);
+  };
+  const runSearch = async () => {
+    if (!searchQuery.trim()) return;
+    if (!apiKey) {
+      setSearchError("Paste a YouTube Data API key in Settings first.");
+      return;
+    }
+    setSearching(true);
+    setSearchError("");
+    setViewMode("search");
+    try {
+      const results = await searchYoutubeMulti(searchQuery, apiKey, 10);
+      setSearchResults(results);
+    } catch (e) {
+      setSearchError(e.message);
+    }
+    setSearching(false);
+  };
+  const playSearchResult = (r) => {
+    const t = { title: r.title, artist: r.channel, duration: 240 };
+    saveThisLink(linkKey(t), r.videoId);
+    setPlaylists((pl) => {
+      const scratch = pl["__lastSearch"] || [];
+      return pl;
+    });
+    setActiveAlbumId("my-playz");
+    ytEnsurePlay(r.videoId);
+  };
+  const ytEnsurePlay = (videoId) => {
+    const yt = ytPlayerRef.current;
+    if (yt && ytReady) {
+      stopGraph();
+      yt.loadVideoById(videoId);
+      setIsPlaying(true);
+      setPlayerOpen(true);
+      setEverPlayed(true);
+    }
+  };
+  const createPlaylist = () => {
+    const name = (newPlaylistName || "").trim();
+    if (!name || playlists[name]) return;
+    const next2 = { ...playlists, [name]: [] };
+    setPlaylists(next2);
+    savePlaylistsToStorage(next2);
+    setAddTarget(name);
+    setNewPlaylistName("");
+  };
+  const addTrackToPlaylist = (name, t) => {
+    if (!name) return;
+    const existing = playlists[name] || [];
+    if (existing.some((x) => trackKey(x) === trackKey(t))) return;
+    const next2 = { ...playlists, [name]: [...existing, { title: t.title, artist: t.artist, duration: t.duration || 200 }] };
+    setPlaylists(next2);
+    savePlaylistsToStorage(next2);
+  };
+  const isInAddTarget = (t) => addTarget && (playlists[addTarget] || []).some((x) => trackKey(x) === trackKey(t));
+  const spawnSparkles = (clientX, clientY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    for (let i = 0; i < 2; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.6 + Math.random() * 1.4;
+      particlesRef.current.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.6,
+        life: 1,
+        size: 6 + Math.random() * 8,
+        color: SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)]
+      });
+    }
+  };
+  const handleDiscPointerDown = (e) => {
+    isSwipingRef.current = true;
+    spawnSparkles(e.clientX, e.clientY);
+  };
+  const handleDiscPointerMove = (e) => {
+    if (isSwipingRef.current) spawnSparkles(e.clientX, e.clientY);
+  };
+  const handleDiscPointerUp = () => {
+    isSwipingRef.current = false;
+  };
+  return /* @__PURE__ */ React.createElement("div", { className: "w-full min-h-screen flex flex-col", style: { background: "#000000", color: "#EFE9DE", fontFamily: "'Inter', sans-serif" } }, /* @__PURE__ */ React.createElement("style", null, `
+        input[type="range"] { -webkit-appearance: none; height: 3px; background: #262626; border-radius: 2px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: ${ACCENT_RED}; cursor: pointer; }
+        .track-scroll::-webkit-scrollbar { width: 6px; }
+        .track-scroll::-webkit-scrollbar-thumb { background: #262626; border-radius: 3px; }
+        @keyframes playerPop { 0% { opacity: 0; transform: scale(0.9) translateY(8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        .player-pop { animation: playerPop 0.55s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes lyricsFade { 0% { opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+        .lyrics-fade { animation: lyricsFade 4s ease-in-out infinite; }
+      `), playerOpen ? /* @__PURE__ */ React.createElement("div", { key: `${activeAlbumId}-${index}`, className: "player-pop flex-1 flex flex-col", style: { minHeight: "100vh" } }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center px-5 pt-5 pb-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setPlayerOpen(false), className: "w-9 h-9 rounded-full flex items-center justify-center", style: { color: ACCENT_RED } }, /* @__PURE__ */ React.createElement(IconBack, null))), /* @__PURE__ */ React.createElement("div", { className: "flex-1 flex flex-col items-center justify-center px-6" }, /* @__PURE__ */ React.createElement(
+    "canvas",
+    {
+      ref: canvasRef,
+      style: { width: 220, height: 220, touchAction: "none" },
+      className: "mb-6",
+      onPointerDown: handleDiscPointerDown,
+      onPointerMove: handleDiscPointerMove,
+      onPointerUp: handleDiscPointerUp,
+      onPointerLeave: handleDiscPointerUp
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "text-xs tracking-widest uppercase mb-2", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#6B6355" } }, "Now playing \xB7 ", album.name), /* @__PURE__ */ React.createElement("h2", { className: "text-2xl text-center mb-1 px-4", style: { fontFamily: "'Fraunces', serif", fontWeight: 600 } }, track.title), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-center mb-3", style: { color: "#8A8272" } }, track.artist), /* @__PURE__ */ React.createElement("div", { key: `lyrics-${index}`, className: "lyrics-fade text-xs text-center px-6 mb-3", style: { color: "#4E4838", minHeight: 18 } }, "Lyrics sync goes here \u2014 plug in a licensed lyrics API to light this up"), linkedVideoId ? /* @__PURE__ */ React.createElement("span", { className: "text-xs px-2 py-1 rounded-full", style: { border: `1px solid ${ACCENT_RED}55`, color: ACCENT_RED } }, "\u25CF Linked to YouTube") : /* @__PURE__ */ React.createElement("div", { className: "w-full max-w-xs flex flex-col items-center gap-2" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: "#6B6355" } }, "Not linked yet \u2014 playing demo audio"), /* @__PURE__ */ React.createElement("button", { onClick: openYoutubeSearch, className: "text-xs px-3 py-1.5 rounded-full", style: { border: `1px solid ${ACCENT_RED}`, color: ACCENT_RED } }, "Find on YouTube \u2197"), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 w-full" }, /* @__PURE__ */ React.createElement("input", { value: linkInput, onChange: (e) => setLinkInput(e.target.value), placeholder: "Paste YouTube link here", className: "flex-1 text-xs px-2 py-1.5 rounded", style: { background: "#141414", border: "1px solid #262626", color: "#EFE9DE" } }), /* @__PURE__ */ React.createElement("button", { onClick: linkCurrentTrack, className: "text-xs px-3 py-1.5 rounded", style: { background: ACCENT_RED, color: "#000000" } }, "Save")))), /* @__PURE__ */ React.createElement("div", { className: "flex-shrink-0 px-6 pb-10 pt-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3 mb-4" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs w-9 text-right", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#6B6355" } }, formatTime(time)), /* @__PURE__ */ React.createElement("input", { type: "range", min: 0, max: track.duration, value: time, onChange: (e) => setTime(Number(e.target.value)), className: "flex-1" }), /* @__PURE__ */ React.createElement("span", { className: "text-xs w-9", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#6B6355" } }, formatTime(track.duration))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center gap-2 mb-5" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setMuted((m) => !m), style: { color: ACCENT_RED } }, muted || volume === 0 ? /* @__PURE__ */ React.createElement(IconMute, null) : /* @__PURE__ */ React.createElement(IconVolume, null)), /* @__PURE__ */ React.createElement("input", { type: "range", min: 0, max: 1, step: 0.01, value: volume, onChange: (e) => setVolume(Number(e.target.value)), style: { width: 130 } })), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center gap-6" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShuffle((s) => !s), style: { color: shuffle ? ACCENT_RED : "#6B6355" } }, /* @__PURE__ */ React.createElement(IconShuffle, { size: 18 })), /* @__PURE__ */ React.createElement("button", { onClick: prev, style: { color: ACCENT_RED } }, /* @__PURE__ */ React.createElement(IconPrev, { size: 22 })), /* @__PURE__ */ React.createElement("button", { onClick: () => setIsPlaying((p) => !p), className: "w-14 h-14 rounded-full flex items-center justify-center", style: { background: ACCENT_RED, color: "#000000" } }, isPlaying ? /* @__PURE__ */ React.createElement(IconPause, { size: 22 }) : /* @__PURE__ */ React.createElement(IconPlay, { size: 22 })), /* @__PURE__ */ React.createElement("button", { onClick: next, style: { color: ACCENT_RED } }, /* @__PURE__ */ React.createElement(IconNext, { size: 22 })), /* @__PURE__ */ React.createElement("span", { style: { width: 18 } })))) : /* @__PURE__ */ React.createElement("div", { className: "flex-1 flex flex-col", style: { minHeight: "100vh" } }, /* @__PURE__ */ React.createElement("div", { className: "px-5 pt-6 pb-3 text-center flex-shrink-0" }, /* @__PURE__ */ React.createElement("span", { className: "text-lg tracking-wide", style: { fontFamily: "'Fraunces', serif", fontWeight: 600 } }, "MUSICLY ", /* @__PURE__ */ React.createElement("span", { style: { color: ACCENT_RED } }, "BY MOKSH"))), /* @__PURE__ */ React.createElement("div", { className: "px-5 pb-2 flex-shrink-0" }, viewMode === "search" && /* @__PURE__ */ React.createElement("div", { className: "flex gap-2 mb-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setViewMode("library"), style: { color: ACCENT_RED } }, /* @__PURE__ */ React.createElement(IconBack, { size: 18 })), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: searchQuery,
+      onChange: (e) => setSearchQuery(e.target.value),
+      onKeyDown: (e) => e.key === "Enter" && runSearch(),
+      placeholder: "Search any song worldwide\u2026",
+      autoFocus: true,
+      className: "flex-1 text-sm px-3 py-2 rounded",
+      style: { background: "#141414", border: "1px solid #262626", color: "#EFE9DE" }
+    }
+  ), /* @__PURE__ */ React.createElement("button", { onClick: runSearch, className: "px-3 rounded", style: { background: ACCENT_RED, color: "#000000" } }, /* @__PURE__ */ React.createElement(IconSearch, { size: 16 }))), viewMode === "library" && libraryTab === "home" && /* @__PURE__ */ React.createElement("div", { className: "text-xs uppercase tracking-widest mb-1", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#6B6355" } }, album.name)), /* @__PURE__ */ React.createElement("ul", { className: "track-scroll flex-1 overflow-y-auto space-y-1 px-5", style: { paddingBottom: everPlayed ? 150 : 90 } }, viewMode === "library" && libraryTab === "home" && album.tracks.map((t, i) => /* @__PURE__ */ React.createElement("li", { key: `${t.title}-${i}`, className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => selectTrack(i), className: "flex-1 min-w-0 text-left px-3 py-2.5 rounded flex items-center justify-between gap-3", style: { background: i === index ? "#141414" : "transparent" } }, /* @__PURE__ */ React.createElement("div", { className: "min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm truncate", style: { color: i === index ? ACCENT_RED : "#EFE9DE" } }, t.title), /* @__PURE__ */ React.createElement("div", { className: "text-xs truncate", style: { color: "#6B6355" } }, t.artist)), /* @__PURE__ */ React.createElement("span", { className: "flex items-center gap-1.5 flex-shrink-0" }, videoMap[linkKey(t)] && /* @__PURE__ */ React.createElement("span", { style: { color: ACCENT_RED, fontSize: 10 } }, "\u25CF"), /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#4E4838" } }, formatTime(t.duration)))), addTarget && /* @__PURE__ */ React.createElement("button", { onClick: () => addTrackToPlaylist(addTarget, t), className: "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center", style: { border: `1px solid ${isInAddTarget(t) ? ACCENT_RED : "#262626"}`, color: isInAddTarget(t) ? ACCENT_RED : "#8A8272" } }, /* @__PURE__ */ React.createElement(IconPlus, { size: 12 })))), viewMode === "library" && libraryTab === "yourLibrary" && /* @__PURE__ */ React.createElement(React.Fragment, null, albums.map((a) => /* @__PURE__ */ React.createElement("li", { key: a.id }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => {
+        setActiveAlbumId(a.id);
+        setLibraryTab("home");
+      },
+      className: "w-full text-left px-3 py-3 rounded flex items-center justify-between",
+      style: { background: a.id === activeAlbumId ? "#141414" : "transparent", border: "1px solid #262626" }
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3" }, /* @__PURE__ */ React.createElement("div", { className: "w-10 h-10 rounded flex items-center justify-center flex-shrink-0", style: { background: "#141414", color: ACCENT_RED } }, /* @__PURE__ */ React.createElement(IconDisc, { size: 18 })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm", style: { color: a.id === activeAlbumId ? ACCENT_RED : "#EFE9DE" } }, a.name), /* @__PURE__ */ React.createElement("div", { className: "text-xs", style: { color: "#6B6355" } }, a.tracks.length, " songs", a.isPlaylist ? " \xB7 your playlist" : "")))
+  ))), /* @__PURE__ */ React.createElement("li", { className: "pt-3" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setShowSettings((s) => !s), className: "w-full flex items-center justify-between px-3 py-2 rounded text-sm", style: { border: "1px solid #262626", color: "#B8AF9E" } }, /* @__PURE__ */ React.createElement("span", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement(IconLink, null), " Settings (YouTube + shared links)"), /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { fontFamily: "'IBM Plex Mono', monospace", color: "#6B6355" } }, showSettings ? "hide" : "show"))), showSettings && /* @__PURE__ */ React.createElement("li", { className: "mt-2 p-3 rounded space-y-2", style: { border: "1px solid #262626" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-1", style: { color: "#B8AF9E" } }, "YouTube Data API key"), /* @__PURE__ */ React.createElement("input", { value: apiKey, onChange: (e) => saveApiKey(e.target.value), placeholder: "Paste API key", className: "w-full text-xs px-2 py-1.5 rounded", style: { background: "#141414", border: "1px solid #262626", color: "#EFE9DE" } })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-xs mb-1", style: { color: "#B8AF9E" } }, "Firebase Database URL (shares links across devices)"), /* @__PURE__ */ React.createElement("input", { value: firebaseUrl, onChange: (e) => saveFirebaseUrl(e.target.value), placeholder: "https://your-project-default-rtdb.firebaseio.com", className: "w-full text-xs px-2 py-1.5 rounded", style: { background: "#141414", border: "1px solid #262626", color: "#EFE9DE" } })), autoLinking ? /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: "#8A8272" } }, "Linking ", autoLinkProgress.done, "/", autoLinkProgress.total, "\u2026"), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    stopAutoLinkRef.current = true;
+  }, className: "text-xs px-2 py-1 rounded", style: { border: "1px solid #262626", color: "#B8AF9E" } }, "Stop")) : /* @__PURE__ */ React.createElement("button", { onClick: autoLinkAll, className: "w-full text-xs px-3 py-1.5 rounded", style: { background: ACCENT_RED, color: "#000000" } }, 'Auto-link "', album.name, '" (', album.tracks.filter((t) => !videoMap[linkKey(t)]).length, " left)"), autoLinkError && /* @__PURE__ */ React.createElement("p", { className: "text-xs", style: { color: "#B85C5C" } }, autoLinkError))), viewMode === "library" && libraryTab === "create" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("li", { className: "flex gap-2 mb-2" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: newPlaylistName,
+      onChange: (e) => setNewPlaylistName(e.target.value),
+      onKeyDown: (e) => e.key === "Enter" && createPlaylist(),
+      placeholder: "New playlist name",
+      className: "flex-1 text-sm px-3 py-2 rounded",
+      style: { background: "#141414", border: "1px solid #262626", color: "#EFE9DE" }
+    }
+  ), /* @__PURE__ */ React.createElement("button", { onClick: createPlaylist, className: "px-4 rounded text-sm", style: { background: ACCENT_RED, color: "#000000" } }, "Create")), Object.keys(playlists).length === 0 && /* @__PURE__ */ React.createElement("li", { className: "text-xs px-1", style: { color: "#6B6355" } }, 'No playlists yet \u2014 create one above, then pick it below as your "adding to" target before browsing Home or Search.'), Object.keys(playlists).map((name) => /* @__PURE__ */ React.createElement("li", { key: name }, /* @__PURE__ */ React.createElement("button", { onClick: () => setAddTarget(name), className: "w-full text-left px-3 py-3 rounded flex items-center justify-between", style: { border: `1px solid ${addTarget === name ? ACCENT_RED : "#262626"}` } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm", style: { color: addTarget === name ? ACCENT_RED : "#EFE9DE" } }, name), /* @__PURE__ */ React.createElement("div", { className: "text-xs", style: { color: "#6B6355" } }, playlists[name].length, " songs")), addTarget === name && /* @__PURE__ */ React.createElement("span", { className: "text-xs", style: { color: ACCENT_RED } }, "adding here"))))), viewMode === "search" && /* @__PURE__ */ React.createElement(React.Fragment, null, searching && /* @__PURE__ */ React.createElement("li", { className: "text-xs px-3 py-2", style: { color: "#8A8272" } }, "Searching\u2026"), searchError && /* @__PURE__ */ React.createElement("li", { className: "text-xs px-3 py-2", style: { color: "#B85C5C" } }, searchError), !searching && searchResults.map((r, i) => /* @__PURE__ */ React.createElement("li", { key: r.videoId + i, className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("button", { onClick: () => playSearchResult(r), className: "flex-1 min-w-0 text-left px-3 py-2.5 rounded flex items-center gap-3", style: { background: "transparent" } }, r.thumb && /* @__PURE__ */ React.createElement("img", { src: r.thumb, className: "w-9 h-9 rounded flex-shrink-0" }), /* @__PURE__ */ React.createElement("div", { className: "min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm truncate", style: { color: "#EFE9DE" } }, r.title), /* @__PURE__ */ React.createElement("div", { className: "text-xs truncate", style: { color: "#6B6355" } }, r.channel))), addTarget && /* @__PURE__ */ React.createElement("button", { onClick: () => addTrackToPlaylist(addTarget, { title: r.title, artist: r.channel, duration: 240 }), className: "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center", style: { border: "1px solid #262626", color: "#8A8272" } }, /* @__PURE__ */ React.createElement(IconPlus, { size: 12 })))))), /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", left: 0, right: 0, bottom: 0, background: "#000000", zIndex: 20 } }, everPlayed && /* @__PURE__ */ React.createElement("button", { onClick: () => setPlayerOpen(true), className: "w-full relative", style: { background: "#141414", borderTop: "1px solid #262626" } }, /* @__PURE__ */ React.createElement("div", { style: { height: 2, background: "#262626" } }, /* @__PURE__ */ React.createElement("div", { style: { height: 2, width: `${track.duration ? Math.min(100, time / track.duration * 100) : 0}%`, background: ACCENT_RED } })), /* @__PURE__ */ React.createElement("div", { className: "px-3 py-2 flex items-center justify-between gap-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-3 min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "w-9 h-9 rounded flex items-center justify-center flex-shrink-0", style: { background: "#000000", color: audioParams.accent } }, /* @__PURE__ */ React.createElement(IconDisc, { size: 16 })), /* @__PURE__ */ React.createElement("div", { className: "min-w-0 text-left" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm truncate", style: { color: "#EFE9DE" } }, track.title), /* @__PURE__ */ React.createElement("div", { className: "text-xs truncate", style: { color: "#6B6355" } }, track.artist))), /* @__PURE__ */ React.createElement(
+    "span",
+    {
+      onClick: (e) => {
+        e.stopPropagation();
+        setIsPlaying((p) => !p);
+      },
+      className: "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
+      style: { background: ACCENT_RED, color: "#000000" }
+    },
+    isPlaying ? /* @__PURE__ */ React.createElement(IconPause, { size: 16 }) : /* @__PURE__ */ React.createElement(IconPlay, { size: 16 })
+  ))), /* @__PURE__ */ React.createElement("div", { className: "flex items-stretch justify-around py-2 border-t", style: { borderColor: "#262626" } }, [
+    { key: "home", label: "Home", icon: IconHome, onClick: () => {
+      setViewMode("library");
+      setLibraryTab("home");
+    } },
+    { key: "search", label: "Search", icon: IconSearch, onClick: () => setViewMode("search") },
+    { key: "yourLibrary", label: "Your Library", icon: IconLibrary, onClick: () => {
+      setViewMode("library");
+      setLibraryTab("yourLibrary");
+    } },
+    { key: "create", label: "Create", icon: IconPlus, onClick: () => {
+      setViewMode("library");
+      setLibraryTab("create");
+    } }
+  ].map((nav) => {
+    const active = nav.key === "search" ? viewMode === "search" : viewMode === "library" && libraryTab === nav.key;
+    const Icon = nav.icon;
+    return /* @__PURE__ */ React.createElement("button", { key: nav.key, onClick: nav.onClick, className: "flex flex-col items-center gap-1 px-2" }, /* @__PURE__ */ React.createElement(Icon, { size: 20, color: active ? ACCENT_RED : "#6B6355" }), /* @__PURE__ */ React.createElement("span", { className: "text-[10px]", style: { color: active ? ACCENT_RED : "#6B6355" } }, nav.label));
+  })))));
+}
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "#000000", color: "#EFE9DE", padding: 20, fontFamily: "monospace", fontSize: 13, overflow: "auto" } }, "Something crashed while rendering the app:", "\n\n", String(this.state.error && this.state.error.message || this.state.error));
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(ErrorBoundary, null, /* @__PURE__ */ React.createElement(MusicPlayer, null)));
+</script>
+</body>
+</html>
